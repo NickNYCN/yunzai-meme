@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'node:path'
 import _ from 'lodash'
 
-const baseUrl = 'http://0.0.0.0:2233'
+const baseUrl = 'https://memes.ikechan8370.com'
 
 /**
  * 机器人发表情是否引用回复用户
