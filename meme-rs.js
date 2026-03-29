@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'node:path'
 import _ from 'lodash'
 
-const baseUrl = 'https://memes.ikechan8370.com'
+const baseUrl = 'http://0.0.0.0:2233'
 
 /**
  * 机器人发表情是否引用回复用户
@@ -262,149 +262,139 @@ export class memes extends plugin {
     return await this.memes(e)
   }
 
-  /**
+/**
    * #memes
    * @param e oicq传递的事件参数e
    */
   async memes (e) {
-    // console.log(e)
     let msg = e.msg.replace('#', '')
-    /**
-     * 智能匹配最长关键词
-     * @param {string} msg 用户消息
-     * @param {Object} keyMap 关键词映射对象
-     * @returns {string} 匹配到的最长关键词，如果没有匹配则返回null
-     */
+
     function findLongestMatchingKey (msg, keyMap) {
-      // 找出所有匹配消息开头的关键词
       const matchingKeys = Object.keys(keyMap).filter(k => msg.startsWith(k))
-      if (matchingKeys.length === 0) {
-        return null // 没有匹配项
-      }
-      // 按关键词长度降序排序，选择最长的一个
+      if (matchingKeys.length === 0) return null
       return matchingKeys.sort((a, b) => b.length - a.length)[0]
     }
-    // 替换原有的硬编码匹配逻辑
-    let target = findLongestMatchingKey(msg, keyMap)
 
+    let target = findLongestMatchingKey(msg, keyMap)
     let targetCode = keyMap[target]
-    // let target = e.msg.replace(/^#?meme(s)?/, '')
     let text1 = _.trimStart(e.msg, '#').replace(target, '')
+    
     if (text1.trim() === '详情' || text1.trim() === '帮助') {
       await e.reply(detail(targetCode))
       return true
     }
-    let [text, args = ''] = text1.split('#')
-    // let userInfos
-    let info = infos[targetCode]
 
-    // 将原来的formData逻辑替换为以下代码
+    let [text, args = ''] = text1.split('#')
+    let info = infos[targetCode]
 
     let imageIds = []
     let texts = []
 
-    // 处理图片上传
+    // --- 图片处理开始 ---
     if (info.params.max_images > 0) {
-      // 可以有图，来从回复、发送和头像找图
       let imgUrls = []
+      
+      // 1. 从回复/上下文找图
       if (e.source || e.reply_id) {
-        // 优先从回复找图
         let reply
         if (this.e.getReply) {
           reply = await this.e.getReply()
         } else if (this.e.source) {
-          if (this.e.group?.getChatHistory) { reply = (await this.e.group.getChatHistory(this.e.source.seq, 1)).pop() } else if (this.e.friend?.getChatHistory) { reply = (await this.e.friend.getChatHistory(this.e.source.time, 1)).pop() }
+          if (this.e.group?.getChatHistory) { 
+            reply = (await this.e.group.getChatHistory(this.e.source.seq, 1)).pop() 
+          } else if (this.e.friend?.getChatHistory) { 
+            reply = (await this.e.friend.getChatHistory(this.e.source.time, 1)).pop() 
+          }
         }
         if (reply?.message) {
           for (let val of reply.message) {
-            if (val.type === 'image') {
-              console.log(val)
-              imgUrls.push(val.url)
-            }
+            if (val.type === 'image') imgUrls.push(val.url)
           }
         }
-      } else if (e.img) {
-        // 一起发的图
+      } 
+      // 2. 从当前消息找图
+      else if (e.img) {
         imgUrls.push(...e.img)
-      } else if (e.message.filter(m => m.type === 'at').length > 0) {
-        // 艾特的用户的头像
+      } 
+      // 3. 从艾特(At)找头像
+      else if (e.message.filter(m => m.type === 'at').length > 0) {
         let ats = e.message.filter(m => m.type === 'at')
-        imgUrls = ats.map(at => at.qq).map(qq => `https://q1.qlogo.cn/g?b=qq&s=160&nk=${qq}`)
+        for (let at of ats) {
+          imgUrls.push(await getAvatar(e, at.qq))
+        }
       }
-      if (!imgUrls || imgUrls.length === 0) {
-        // 如果都没有，用发送者的头像
-        imgUrls = [await getAvatar(e)]
+
+      // 4. 兜底逻辑：如果没图，用发送者头像
+      const myAvatar = await getAvatar(e)
+      if (imgUrls.length === 0) {
+        imgUrls = [myAvatar]
       }
-      if (imgUrls.length < info.params.min_images && imgUrls.indexOf(await getAvatar(e)) === -1) {
-        // 如果数量不够，补上发送者头像，且放到最前面
-        let me = [await getAvatar(e)]
-        imgUrls = me.concat(imgUrls)
+
+      // 5. 补齐逻辑：如果数量不够且没用过自己的头像，补上
+      if (imgUrls.length < info.params.min_images && !imgUrls.includes(myAvatar)) {
+        imgUrls.unshift(myAvatar)
       }
-      logger.debug('imgUrls:', imgUrls)
+
+      // --- 主人保护逻辑 (优化版) ---
       if (protectList.includes(targetCode) && masterProtectDo) {
-        let me = [await getAvatar(e)]
-        let masters = await getMasterQQ()
-        // 有些meme只需要传一张图，此时如果targetQQ是主人，那meme的人就是他自己
-        if (imgUrls.length === 1) {
-          if (imgUrls[0].startsWith('https://q1.qlogo.cn')) {
-            let split = imgUrls[0].split('=')
-            let targetQQ = split[split.length - 1]
-            if (masters.map(q => q + '').indexOf(targetQQ) > -1) {
-              imgUrls[0] = me
-            }
+        const masters = (await getMasterQQ()).map(q => String(q))
+        
+        const getIdFromUrl = (url) => {
+          if (!url || typeof url !== 'string') return null
+          if (url.includes('q1.qlogo.cn')) return url.split('=').pop()
+          if (url.includes('avatar-cyan.vercel.app')) {
+            const parts = url.split('/')
+            return 'dc_' + parts[parts.length - 2]
           }
-        } else {
-          if (imgUrls[1].startsWith('https://q1.qlogo.cn')) {
-            let split = imgUrls[1].split('=')
-            let targetQQ = split[split.length - 1]
-            if (masters.map(q => q + '').indexOf(targetQQ) > -1) {
-              imgUrls = [imgUrls[1]].concat(me)
-            }
+          return null
+        }
+
+        // 检查目标（通常是图1或图2）是否为主人
+        if (imgUrls.length === 1) {
+          let targetId = getIdFromUrl(imgUrls[0])
+          if (targetId && masters.includes(targetId)) {
+            imgUrls[0] = myAvatar // 保护主人，改成撅自己
+          }
+        } else if (imgUrls.length >= 2) {
+          let targetId = getIdFromUrl(imgUrls[1])
+          if (targetId && masters.includes(targetId)) {
+            // 被撅的是主人，位置对调：让主人撅我
+            imgUrls = [imgUrls[1], myAvatar, ...imgUrls.slice(2)]
           }
         }
       }
-      imgUrls = imgUrls.slice(0, Math.min(info.params.max_images, imgUrls.length))
 
-      // 上传图片并获取ID
+      // 限制最大图片数
+      imgUrls = imgUrls.slice(0, info.params.max_images)
+
+      // 6. 上传图片至服务器
       for (let i = 0; i < imgUrls.length; i++) {
-        let imgUrl = imgUrls[i]
-        const imageResponse = await fetch(imgUrl)
-        const blob = await imageResponse.blob()
-        const arrayBuffer = await blob.arrayBuffer()
-        const buffer = Buffer.from(arrayBuffer)
-        const base64Data = buffer.toString('base64')
+        try {
+          const imageResponse = await fetch(imgUrls[i])
+          const buffer = Buffer.from(await (await imageResponse.blob()).arrayBuffer())
+          
+          if (checkFileSize([{ size: buffer.length }])) {
+            return this.e.reply(`图片 ${i+1} 太大，超出 ${maxFileSize}MB 限制`)
+          }
 
-        // 检查文件大小
-        if (checkFileSize([{ size: buffer.length }])) {
-          return this.e.reply(`文件大小超出限制，最多支持${maxFileSize}MB`)
-        }
-
-        // 上传图片
-        const uploadResponse = await fetch(`${baseUrl}/image/upload`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            type: 'data',
-            data: base64Data
+          const uploadResponse = await fetch(`${baseUrl}/image/upload`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'data', data: buffer.toString('base64') })
           })
-        })
 
-        if (uploadResponse.status > 299) {
-          let error = await uploadResponse.text()
-          console.error('图片上传失败:', error)
-          await e.reply('图片上传失败：' + error, true)
-          return true
+          if (uploadResponse.ok) {
+            const res = await uploadResponse.json()
+            imageIds.push({ name: `image_${i}`, id: res.image_id })
+          }
+        } catch (err) {
+          logger.error(`图片处理失败: ${err.message}`)
         }
-
-        const uploadResult = await uploadResponse.json()
-        imageIds.push({
-          name: `image_${i}`,
-          id: uploadResult.image_id
-        })
       }
     }
+    // --- 图片处理结束 ---
+
+    // ... 后面处理文本和发送请求的逻辑保持不变 ...
 
     // 处理文本
     if (text && info.params.max_texts === 0) {
@@ -673,8 +663,19 @@ async function getMasterQQ () {
 }
 
 async function getAvatar (e, userId = e.sender.user_id) {
+  // 如果适配器自带获取头像的方法，优先使用
   if (typeof e.getAvatarUrl === 'function') {
     return await e.getAvatarUrl(0)
   }
-  return `https://q1.qlogo.cn/g?b=qq&s=0&nk=${userId}`
+
+  const idStr = String(userId);
+
+  // 判断是否为 Discord ID
+  if (idStr.startsWith('dc_')) {
+    const discord_id = idStr.replace('dc_', '');
+    return `https://avatar-cyan.vercel.app/api/pfp/${discord_id}/bigimage`;
+  }
+
+  // 默认返回 QQ 头像链接
+  return `https://q1.qlogo.cn/g?b=qq&s=0&nk=${userId}`;
 }
