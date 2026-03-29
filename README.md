@@ -1,7 +1,7 @@
 # yunzai-meme
 ![3F53077B8088F0C03FA7C81B2E4CC62A](https://user-images.githubusercontent.com/21212372/228231810-3202ff31-e5ed-4ab8-a93f-a55ab6d48f58.gif)
 
-基于meme-generator的Yunzai机器人的表情包插件
+基于meme-generator的Yunzai机器人的表情包插件，本分叉加入对[Discord](https://github.com/TimeRainStarSky/Yunzai-Discord-Plugin)昵称的判别并加入了获取Discord头像的链接，从而在Discord中也能让你的好友`#跳`了。对本插件的的修改感谢AI开源。
 
 ## 搭建meme服务器
 
