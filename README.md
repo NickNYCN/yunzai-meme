@@ -1,7 +1,7 @@
 # yunzai-meme
 ![3F53077B8088F0C03FA7C81B2E4CC62A](https://user-images.githubusercontent.com/21212372/228231810-3202ff31-e5ed-4ab8-a93f-a55ab6d48f58.gif)
 
-基于meme-generator的Yunzai机器人的表情包插件，本分叉加入对[Discord](https://github.com/TimeRainStarSky/Yunzai-Discord-Plugin)昵称的判别并加入了获取Discord头像的链接，从而在Discord中也能让你的好友`#跳`了。对本插件的的修改感谢AI开源。
+基于meme-generator的Yunzai机器人的表情包插件，用于适配[TRSS的Discord适配器](https://github.com/TimeRainStarSky/Yunzai-Discord-Plugin)，本分叉修改了对昵称的判别并加入了获取头像的链接，从而在Discord服务器中也能让你的好友`#跳`了。对本插件的的修改感谢AI开源。
 
 ## 搭建meme服务器
 
@@ -34,18 +34,16 @@
 
 ## 安装
 
-直接把meme.js扔到plugins/example目录下即可
+直接把meme-rs.js扔到plugins/example目录下即可
 
 下载链接：
 
-https://raw.githubusercontent.com/ikechan8370/yunzai-meme/main/meme.js
+原版：https://raw.githubusercontent.com/ikechan8370/yunzai-meme/main/meme.js
 
-或者大陆服务器可以用gitee，不一定有github更新及时
+本修改版：https://raw.githubusercontent.com/NickNYCN/yunzai-meme/main/meme-rs.js
 
-https://gitee.com/ikechan/yunzai-meme/raw/main/meme.js
 
 安装后可能需要重启，如果没响应就重启一下试试
-可以发送meme更新进行资源的在线更新。
 
 ## 食用方法
 
@@ -57,9 +55,6 @@ https://gitee.com/ikechan/yunzai-meme/raw/main/meme.js
 
 需要文字合成表情包的需要在指令中添加文字，并用/隔开，如：可达鸭我爱你/你爱我
 
-0626更新：`#meme更新`进行在线更新
-
-> 如果觉得有帮助，请帮我点一个免费的Star，谢谢！
 
 ## 致谢
 
